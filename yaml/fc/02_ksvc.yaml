@@ -9,6 +9,18 @@ spec:
       containers:
       - image: harbor.ctyun.dev:1443/hl-test/tplink-demo
         env:
-        - name: TARGET
-          value: "Python Sample v1"
+        - name: INTERNAL_SCHEME
+          value: "http"
+        - name: REDIS_HOST
+          value: "192.168.0.212"
+        - name: REDIS_AUTH
+          value: "D4^mF6@fM9!m"
+        - name: REDIS_PORT
+          value: "6379"
+        - name: REDIS_TIMEOUT
+          value: "10"
+        - name: HOST
+          value: "192.168.0.216:8080"
+        - name: URL_PATH
+          value: "/test"
 

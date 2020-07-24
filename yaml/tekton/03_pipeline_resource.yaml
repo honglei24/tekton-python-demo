@@ -8,4 +8,4 @@ spec:
     - name: url
       value: https://gitlab.ctyuncdn.cn/honglei1/tekton-python-demo/
     - name: revision
-      value: tplink-demo
+      value: tplink

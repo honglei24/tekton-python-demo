@@ -1,0 +1,7 @@
+export INTERNAL_SCHEME="http"
+export REDIS_HOST="192.168.0.212"
+export REDIS_AUTH="D4^mF6@fM9!m"
+export REDIS_PORT="6379"
+export REDIS_TIMEOUT="10"
+export HOST="192.168.0.216:8080"
+export PATH="/test"

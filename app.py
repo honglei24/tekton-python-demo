@@ -9,24 +9,19 @@ app = Flask(__name__)
 
 @app.route('/', methods=['POST'])
 def hello_world():
+    app.logger.info(time.time())
     app.logger.info("helloworld start-------------------------")
     app.logger.info(time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(time.time())))
     target = os.environ.get('TARGET', 'World')
     header=request.headers
     data=request.stream.read()
-    #print("print info start-------------------------")
-    #app.logger.info(time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(time.time())))
-    #print(header)
-    #print(data)
-    #app.logger.info(time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(time.time())))
-    #print("print info end-------------------------")
-    #print("logger info start-------------------------")
-    #app.logger.info(time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(time.time())))
-    app.logger.info(header)
+    #app.logger.info(header)
     app.logger.info(data)
-    index.handler(data, header)
+
+    app.logger.info("call handler_for_dx")
+    index.handler_for_dx(data, header)
     app.logger.info(time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(time.time())))
-    app.logger.info("logger info end-------------------------")
+    app.logger.info("logger info end-------------------------\n\n")
     return 'Hello {}!\n'.format(target)
 
 if __name__ == "__main__":

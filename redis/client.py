@@ -1,6 +1,7 @@
 from __future__ import unicode_literals
 from itertools import chain
 import datetime
+import sys
 import warnings
 import time
 import threading
@@ -157,19 +158,6 @@ def parse_info(response):
     return info
 
 
-def parse_memory_stats(response, **kwargs):
-    "Parse the results of MEMORY STATS"
-    stats = pairs_to_dict(response,
-                          decode_keys=True,
-                          decode_string_values=True)
-    for key, value in iteritems(stats):
-        if key.startswith('db.'):
-            stats[key] = pairs_to_dict(value,
-                                       decode_keys=True,
-                                       decode_string_values=True)
-    return stats
-
-
 SENTINEL_STATE_TYPES = {
     'can-failover-its-master': int,
     'config-epoch': int,
@@ -229,24 +217,14 @@ def parse_sentinel_get_master(response):
     return response and (response[0], int(response[1])) or None
 
 
-def nativestr_if_bytes(value):
-    return nativestr(value) if isinstance(value, bytes) else value
-
-
-def pairs_to_dict(response, decode_keys=False, decode_string_values=False):
+def pairs_to_dict(response, decode_keys=False):
     "Create a dict given a list of key/value pairs"
     if response is None:
         return {}
-    if decode_keys or decode_string_values:
+    if decode_keys:
         # the iter form is faster, but I don't know how to make that work
         # with a nativestr() map
-        keys = response[::2]
-        if decode_keys:
-            keys = imap(nativestr, keys)
-        values = response[1::2]
-        if decode_string_values:
-            values = imap(nativestr_if_bytes, values)
-        return dict(izip(keys, values))
+        return dict(izip(imap(nativestr, response[::2]), response[1::2]))
     else:
         it = iter(response)
         return dict(izip(it, it))
@@ -620,7 +598,6 @@ class Redis(object):
             'INFO': parse_info,
             'LASTSAVE': timestamp_to_datetime,
             'MEMORY PURGE': bool_ok,
-            'MEMORY STATS': parse_memory_stats,
             'MEMORY USAGE': int_or_none,
             'OBJECT': parse_object,
             'PING': lambda r: nativestr(r) == 'PONG',
@@ -1351,10 +1328,6 @@ class Redis(object):
         "Return the encoding, idletime, or refcount about the key"
         return self.execute_command('OBJECT', infotype, key, infotype=infotype)
 
-    def memory_stats(self):
-        "Return a dictionary of memory stats"
-        return self.execute_command('MEMORY STATS')
-
     def memory_usage(self, key, samples=None):
         """
         Return the total memory usage for key, its value and associated
@@ -1760,8 +1733,7 @@ class Redis(object):
             params.append('REPLACE')
         return self.execute_command('RESTORE', *params)
 
-    def set(self, name, value,
-            ex=None, px=None, nx=False, xx=False, keepttl=False):
+    def set(self, name, value, ex=None, px=None, nx=False, xx=False):
         """
         Set the value at key ``name`` to ``value``
 
@@ -1774,9 +1746,6 @@ class Redis(object):
 
         ``xx`` if set to True, set the value at key ``name`` to ``value`` only
             if it already exists.
-
-        ``keepttl`` if True, retain the time to live associated with the key.
-            (Available since Redis 6.0)
         """
         pieces = [name, value]
         if ex is not None:
@@ -1794,10 +1763,6 @@ class Redis(object):
             pieces.append('NX')
         if xx:
             pieces.append('XX')
-
-        if keepttl:
-            pieces.append('KEEPTTL')
-
         return self.execute_command('SET', *pieces)
 
     def __setitem__(self, name, value):
@@ -3031,23 +2996,12 @@ class Redis(object):
         "Return the number of elements in hash ``name``"
         return self.execute_command('HLEN', name)
 
-    def hset(self, name, key=None, value=None, mapping=None):
+    def hset(self, name, key, value):
         """
-        Set ``key`` to ``value`` within hash ``name``,
-        ``mapping`` accepts a dict of key/value pairs that that will be
-        added to hash ``name``.
-        Returns the number of fields that were added.
+        Set ``key`` to ``value`` within hash ``name``
+        Returns 1 if HSET created a new field, otherwise 0
         """
-        if key is None and not mapping:
-            raise DataError("'hset' with no key value pairs")
-        items = []
-        if key is not None:
-            items.extend((key, value))
-        if mapping:
-            for pair in mapping.items():
-                items.extend(pair)
-
-        return self.execute_command('HSET', name, *items)
+        return self.execute_command('HSET', name, key, value)
 
     def hsetnx(self, name, key, value):
         """
@@ -3061,12 +3015,6 @@ class Redis(object):
         Set key to value within hash ``name`` for each corresponding
         key and value from the ``mapping`` dict.
         """
-        warnings.warn(
-            '%s.hmset() is deprecated. Use %s.hset() instead.'
-            % (self.__class__.__name__, self.__class__.__name__),
-            DeprecationWarning,
-            stacklevel=2,
-        )
         if not mapping:
             raise DataError("'hmset' with 'mapping' of length 0")
         items = []
@@ -3846,8 +3794,8 @@ class Pipeline(Redis):
             # indicates the user should retry this transaction.
             if self.watching:
                 self.reset()
-                raise WatchError("A ConnectionError occurred on while "
-                                 "watching one or more keys")
+                raise WatchError("A ConnectionError occured on while watching "
+                                 "one or more keys")
             # if retry_on_timeout is not set, or the error is not
             # a TimeoutError, raise it
             if not (conn.retry_on_timeout and isinstance(e, TimeoutError)):
@@ -3892,8 +3840,8 @@ class Pipeline(Redis):
         # the socket
         try:
             self.parse_response(connection, '_')
-        except ResponseError as e:
-            errors.append((0, e))
+        except ResponseError:
+            errors.append((0, sys.exc_info()[1]))
 
         # and all the other commands
         for i, command in enumerate(commands):
@@ -3902,20 +3850,20 @@ class Pipeline(Redis):
             else:
                 try:
                     self.parse_response(connection, '_')
-                except ResponseError as e:
-                    self.annotate_exception(e, i + 1, command[0])
-                    errors.append((i, e))
+                except ResponseError:
+                    ex = sys.exc_info()[1]
+                    self.annotate_exception(ex, i + 1, command[0])
+                    errors.append((i, ex))
 
         # parse the EXEC.
         try:
             response = self.parse_response(connection, '_')
         except ExecAbortError:
+            if self.explicit_transaction:
+                self.immediate_execute_command('DISCARD')
             if errors:
                 raise errors[0][1]
-            raise
-
-        # EXEC clears any watched keys
-        self.watching = False
+            raise sys.exc_info()[1]
 
         if response is None:
             raise WatchError("Watched variable changed.")
@@ -3954,8 +3902,8 @@ class Pipeline(Redis):
             try:
                 response.append(
                     self.parse_response(connection, args[0], **options))
-            except ResponseError as e:
-                response.append(e)
+            except ResponseError:
+                response.append(sys.exc_info()[1])
 
         if raise_on_error:
             self.raise_first_error(commands, response)
@@ -4023,8 +3971,8 @@ class Pipeline(Redis):
             # since this connection has died. raise a WatchError, which
             # indicates the user should retry this transaction.
             if self.watching:
-                raise WatchError("A ConnectionError occurred on while "
-                                 "watching one or more keys")
+                raise WatchError("A ConnectionError occured on while watching "
+                                 "one or more keys")
             # if retry_on_timeout is not set, or the error is not
             # a TimeoutError, raise it
             if not (conn.retry_on_timeout and isinstance(e, TimeoutError)):

@@ -17,4 +17,4 @@ spec:
     - /kaniko/executor
     - --dockerfile=Dockerfile
     - --context=/workspace/repo
-    - --destination=harbor.ctyun.dev:1443/hl-test/tplink-demo:latest
+    - --destination=harbor.ctyun.dev:1443/hl-test/tplink:latest
