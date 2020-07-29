@@ -18,6 +18,9 @@ def hello_world():
     #app.logger.info(header)
     app.logger.info(data)
 
+    app.logger.info("call initializer_for_dx")
+    index.initializer_for_dx(header)
+
     app.logger.info("call handler_for_dx")
     index.handler_for_dx(data, header)
     app.logger.info(time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(time.time())))

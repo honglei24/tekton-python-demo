@@ -149,7 +149,7 @@ def main(evt: dict, supplier=SUPPLIER_ALI, creds=None):
 def handler_for_dx(event, context):
     global logger
     logger = Logger('handler')
-    initializer_for_dx(context)
+    #initializer_for_dx(context)
     try:
         evt = json.loads(event)
         main(evt['Records'][0], SUPPLIER_DX)
