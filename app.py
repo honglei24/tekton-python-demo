@@ -18,8 +18,11 @@ def hello_world():
     #app.logger.info(header)
     app.logger.info(data)
 
-    app.logger.info("call initializer_for_dx")
-    index.initializer_for_dx(header)
+    flag = os.environ.get('INIT')
+    if flag == None:
+        app.logger.info("call initializer_for_dx")
+        index.initializer_for_dx(header)
+        os.environ['INIT']="1"
 
     app.logger.info("call handler_for_dx")
     index.handler_for_dx(data, header)
